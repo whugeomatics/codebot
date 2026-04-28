@@ -1,0 +1,36 @@
+server:
+  port: 18080
+
+spring:
+  application:
+    name: codebot
+  profiles:
+    active: local
+
+logging:
+  level:
+    root: info
+    io.github.bridgewares.codebot: info
+
+codebot:
+  enabled: true
+  repository-path: ${CODEBOT_REPOSITORY_PATH:/path/to/target-repository}
+  branch: ${CODEBOT_BRANCH:main}
+  wecom:
+    # 企业微信回调配置中的 Token
+    token: ${WECOM_CALLBACK_TOKEN:}
+    # 企业微信回调配置中的 EncodingAESKey
+    encoding-aes-key: ${WECOM_ENCODING_AES_KEY:}
+    # 自建应用回调时填企业 ID corpId；部分机器人回调可留空并关闭 strict-receive-id
+    receive-id: ${WECOM_RECEIVE_ID:}
+    strict-receive-id: false
+    # 群机器人 webhook，用于把最终答案发回群
+    webhook-url: ${WECOM_ROBOT_WEBHOOK_URL:}
+  llm:
+    base-url: ${OPENAI_BASE_URL:}
+    api-key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_MODEL:}
+    timeout: ${OPENAI_TIMEOUT:180s}
+    max-tokens: ${OPENAI_MAX_TOKENS:1200}
+    # GLM-4.5 content 为空时可关闭 thinking：disabled；不支持该参数的模型设为空。
+    thinking-type: ${OPENAI_THINKING_TYPE:disabled}

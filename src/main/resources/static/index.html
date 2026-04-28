@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>codeBot 代码问答</title>
+    <style>
+        :root {
+          --bg: #f4f6f8;
+          --surface: #ffffff;
+          --surface-soft: #f8fafc;
+          --line: #d9e0e8;
+          --line-strong: #b8c3cf;
+          --text: #172033;
+          --muted: #64748b;
+          --muted-strong: #475569;
+          --primary: #0f766e;
+          --primary-dark: #0b5f59;
+          --primary-soft: #e6f4f1;
+          --danger: #b42318;
+          --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+          --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+          --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        }
+
+        * {
+          box-sizing: border-box;
+        }
+
+        body {
+          margin: 0;
+          min-height: 100vh;
+          background: var(--bg);
+          color: var(--text);
+          font-family: var(--sans);
+          font-size: 15px;
+        }
+
+        .app {
+          min-height: 100vh;
+          display: grid;
+          grid-template-rows: auto 1fr;
+        }
+
+        .topbar {
+          height: 64px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 20px;
+          padding: 0 28px;
+          background: rgba(255, 255, 255, 0.92);
+          border-bottom: 1px solid var(--line);
+          backdrop-filter: blur(10px);
+        }
+
+        .brand {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+
+        .mark {
+          width: 34px;
+          height: 34px;
+          border-radius: 8px;
+          display: grid;
+          place-items: center;
+          color: #fff;
+          background: var(--primary);
+          font-weight: 800;
+          letter-spacing: 0;
+          flex: 0 0 auto;
+        }
+
+        h1 {
+          margin: 0;
+          font-size: 18px;
+          line-height: 1.2;
+          font-weight: 700;
+        }
+
+        .subtitle {
+          margin-top: 3px;
+          color: var(--muted);
+          font-size: 12px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .health {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: var(--muted-strong);
+          font-size: 13px;
+          min-width: 0;
+        }
+
+        .dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: var(--primary);
+          flex: 0 0 auto;
+        }
+
+        .workspace {
+          width: min(1460px, 100%);
+          margin: 0 auto;
+          padding: 24px 28px 28px;
+          display: grid;
+          grid-template-columns: minmax(330px, 420px) minmax(0, 1fr);
+          gap: 22px;
+          align-items: stretch;
+        }
+
+        .panel {
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          box-shadow: var(--shadow);
+          min-width: 0;
+        }
+
+        .composer {
+          padding: 22px;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+
+        .panel-title {
+          margin: 0;
+          font-size: 15px;
+          font-weight: 700;
+        }
+
+        .field {
+          display: grid;
+          gap: 8px;
+        }
+
+        label {
+          color: var(--muted-strong);
+          font-size: 13px;
+          font-weight: 650;
+        }
+
+        input,
+        textarea {
+          width: 100%;
+          border: 1px solid var(--line-strong);
+          border-radius: 8px;
+          color: var(--text);
+          background: #fff;
+          font: inherit;
+          outline: none;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        input {
+          height: 42px;
+          padding: 0 12px;
+        }
+
+        textarea {
+          min-height: 210px;
+          max-height: 420px;
+          padding: 12px;
+          line-height: 1.55;
+          resize: vertical;
+        }
+
+        input:focus,
+        textarea:focus {
+          border-color: var(--primary);
+          box-shadow: 0 0 0 3px var(--primary-soft);
+        }
+
+        .options {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 14px;
+          padding: 12px;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          background: var(--surface-soft);
+        }
+
+        .check {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: var(--text);
+          font-weight: 650;
+        }
+
+        .check input {
+          width: 17px;
+          height: 17px;
+          accent-color: var(--primary);
+          flex: 0 0 auto;
+        }
+
+        .hint {
+          color: var(--muted);
+          font-size: 12px;
+          line-height: 1.4;
+          text-align: right;
+        }
+
+        button {
+          height: 46px;
+          border: 0;
+          border-radius: 8px;
+          color: #fff;
+          background: var(--primary);
+          font: inherit;
+          font-weight: 700;
+          cursor: pointer;
+          transition: background 0.15s ease, transform 0.08s ease;
+        }
+
+        button:hover {
+          background: var(--primary-dark);
+        }
+
+        button:active {
+          transform: translateY(1px);
+        }
+
+        button:disabled {
+          cursor: not-allowed;
+          opacity: 0.68;
+          transform: none;
+        }
+
+        .status {
+          min-height: 20px;
+          color: var(--muted);
+          font-size: 13px;
+          line-height: 1.5;
+        }
+
+        .status.error {
+          color: var(--danger);
+        }
+
+        .answer-panel {
+          display: grid;
+          grid-template-rows: auto 1fr;
+          overflow: hidden;
+        }
+
+        .answer-head {
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 0 20px;
+          border-bottom: 1px solid var(--line);
+          background: var(--surface);
+        }
+
+        .answer-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: var(--muted);
+          font-size: 12px;
+          min-width: 0;
+        }
+
+        .answer-wrap {
+          padding: 20px;
+          min-height: 0;
+          overflow: auto;
+          background: #fbfcfd;
+        }
+
+        .answer {
+          min-height: 520px;
+          padding: 18px 20px;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          background: #fff;
+          color: #172033;
+          font-family: var(--sans);
+          line-height: 1.75;
+          white-space: pre-wrap;
+          overflow-wrap: anywhere;
+        }
+
+        .answer code,
+        .answer pre {
+          font-family: var(--mono);
+        }
+
+        .empty {
+          height: 100%;
+          min-height: 460px;
+          display: grid;
+          place-items: center;
+          color: var(--muted);
+          text-align: center;
+          border: 1px dashed var(--line-strong);
+          border-radius: 8px;
+          background: #fff;
+        }
+
+        .spinner {
+          width: 18px;
+          height: 18px;
+          border: 2px solid #cbd5e1;
+          border-top-color: var(--primary);
+          border-radius: 999px;
+          animation: spin 0.8s linear infinite;
+          display: none;
+        }
+
+        .loading .spinner {
+          display: inline-block;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 900px) {
+          .topbar {
+            height: auto;
+            padding: 16px;
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .subtitle,
+          .health {
+            white-space: normal;
+          }
+
+          .workspace {
+            grid-template-columns: 1fr;
+            padding: 16px;
+          }
+
+          .answer {
+            min-height: 360px;
+          }
+
+          .options {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .hint {
+            text-align: left;
+          }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <header class="topbar">
+        <div class="brand">
+            <div class="mark">M</div>
+            <div>
+                <h1>目标代码仓库问答</h1>
+                <div class="subtitle">基于当前分支代码检索，答案可同步发送到企微群</div>
+            </div>
+        </div>
+        <div id="health" class="health">
+            <span class="dot"></span>
+            <span>读取索引状态中...</span>
+        </div>
+    </header>
+
+    <main class="workspace">
+        <section class="panel composer">
+            <h2 class="panel-title">提交问题</h2>
+            <form id="askForm">
+                <div class="field">
+                    <label for="askedBy">提问人</label>
+                    <input id="askedBy" name="askedBy" autocomplete="name" placeholder="张三">
+                </div>
+
+                <div class="field">
+                    <label for="question">代码问题</label>
+                    <textarea id="question" name="question" required
+                              placeholder="例如：APP告警处置API在哪里实现？请求路径是什么？"></textarea>
+                </div>
+
+                <div class="options">
+                    <label class="check">
+                        <input id="sendToGroup" name="sendToGroup" type="checkbox" checked>
+                        <span>同步发送到企微群</span>
+                    </label>
+                    <div class="hint">取消勾选时只在网页显示答案</div>
+                </div>
+
+                <button id="submitBtn" type="submit">提交问题</button>
+            </form>
+            <div id="status" class="status">等待输入问题。</div>
+        </section>
+
+        <section id="answerPanel" class="panel answer-panel">
+            <div class="answer-head">
+                <h2 class="panel-title">回答</h2>
+                <div class="answer-actions">
+                    <span class="spinner"></span>
+                    <span id="answerMeta">尚未提问</span>
+                </div>
+            </div>
+            <div class="answer-wrap">
+                <div id="empty" class="empty">
+                    <div>
+                        <strong>暂无回答</strong>
+                        <div style="margin-top: 8px;">提交一个关于当前分支代码的问题后，答案会显示在这里。</div>
+                    </div>
+                </div>
+                <div id="answer" class="answer" hidden></div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script>
+    const form = document.getElementById('askForm');
+    const button = document.getElementById('submitBtn');
+    const answer = document.getElementById('answer');
+    const empty = document.getElementById('empty');
+    const status = document.getElementById('status');
+    const health = document.getElementById('health');
+    const answerMeta = document.getElementById('answerMeta');
+    const answerPanel = document.getElementById('answerPanel');
+
+    function setStatus(text, isError = false) {
+      status.textContent = text;
+      status.className = isError ? 'status error' : 'status';
+    }
+
+    function showAnswer(text) {
+      empty.hidden = true;
+      answer.hidden = false;
+      answer.textContent = text || '没有返回答案。';
+    }
+
+    async function loadHealth() {
+      try {
+        const res = await fetch('/api/v1/code-bot/health');
+        const data = await res.json();
+        const branch = data.branch || '-';
+        const commit = data.commitId ? String(data.commitId).slice(0, 8) : '-';
+        health.innerHTML = `<span class="dot"></span><span>${branch} / ${commit} / ${data.chunks || 0} 片段</span>`;
+      } catch (e) {
+        health.innerHTML = '<span class="dot" style="background:#b42318"></span><span>索引状态不可用</span>';
+      }
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const payload = {
+        askedBy: document.getElementById('askedBy').value,
+        question: document.getElementById('question').value,
+        sendToGroup: document.getElementById('sendToGroup').checked
+      };
+
+      button.disabled = true;
+      button.textContent = '生成中...';
+      answerPanel.classList.add('loading');
+      answerMeta.textContent = '检索代码并生成答案';
+      showAnswer('正在检索当前分支代码，请稍候...');
+      setStatus('请求已提交。');
+
+      try {
+        const res = await fetch('/api/v1/code-bot/web/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+        const data = await res.json();
+        showAnswer(data.answer);
+        answerMeta.textContent = data.sentToGroup ? '已同步到企微群' : '仅网页显示';
+        setStatus(data.sentToGroup ? '已发送到企微群。' : '已返回答案，未发送到企微群。');
+      } catch (e) {
+        showAnswer(e.message || String(e));
+        answerMeta.textContent = '请求失败';
+        setStatus('请求失败，请查看服务日志或检查模型配置。', true);
+      } finally {
+        button.disabled = false;
+        button.textContent = '提交问题';
+        answerPanel.classList.remove('loading');
+      }
+    });
+
+    loadHealth();
+</script>
+</body>
+</html>
