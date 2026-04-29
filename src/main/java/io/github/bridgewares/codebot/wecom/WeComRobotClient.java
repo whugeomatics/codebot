@@ -22,12 +22,11 @@ public class WeComRobotClient {
 
     private final CodeBotProperties properties;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient;
+    private volatile HttpClient httpClient;
 
     public WeComRobotClient(CodeBotProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     }
 
     public void sendMarkdown(String markdown) {
@@ -47,7 +46,7 @@ public class WeComRobotClient {
                     .header("Content-Type", "application/json; charset=utf-8")
                     .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                     .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> response = httpClient().send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() != 200) {
                 log.warn("WeCom robot send failed, status={}, body={}", response.statusCode(), response.body());
             }
@@ -64,5 +63,14 @@ public class WeComRobotClient {
             return markdown;
         }
         return markdown.substring(0, MAX_MARKDOWN_LENGTH - 40) + "\n\n...内容过长，已截断";
+    }
+
+    private HttpClient httpClient() {
+        HttpClient current = httpClient;
+        if (current == null) {
+            current = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+            httpClient = current;
+        }
+        return current;
     }
 }

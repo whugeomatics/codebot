@@ -14,7 +14,10 @@ public class CodeBotProperties {
 
     private boolean enabled = true;
     private Path repositoryPath = Path.of("../target-repository");
+    private String repositoryUrl = "";
+    private Path repositoryCachePath = Path.of(".codebot/repositories");
     private String branch = "main";
+    private String adminToken = "";
     private final WeCom wecom = new WeCom();
     private final Index index = new Index();
     private final LlModel llm = new LlModel();
@@ -35,12 +38,36 @@ public class CodeBotProperties {
         this.repositoryPath = repositoryPath;
     }
 
+    public String getRepositoryUrl() {
+        return repositoryUrl;
+    }
+
+    public void setRepositoryUrl(String repositoryUrl) {
+        this.repositoryUrl = repositoryUrl;
+    }
+
+    public Path getRepositoryCachePath() {
+        return repositoryCachePath;
+    }
+
+    public void setRepositoryCachePath(Path repositoryCachePath) {
+        this.repositoryCachePath = repositoryCachePath;
+    }
+
     public String getBranch() {
         return branch;
     }
 
     public void setBranch(String branch) {
         this.branch = branch;
+    }
+
+    public String getAdminToken() {
+        return adminToken;
+    }
+
+    public void setAdminToken(String adminToken) {
+        this.adminToken = adminToken;
     }
 
     public WeCom getWecom() {
@@ -153,7 +180,7 @@ public class CodeBotProperties {
         private String apiKey = "";
         private String model = "gpt-5.4";
         private Duration timeout = Duration.ofSeconds(180);
-        private Integer maxTokens = 1200;
+        private Integer maxTokens = 10000;
         private String thinkingType = "disabled";
 
         public String getBaseUrl() {

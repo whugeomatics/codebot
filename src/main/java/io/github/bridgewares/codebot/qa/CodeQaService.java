@@ -52,6 +52,9 @@ public class CodeQaService {
     }
 
     public String answer(String question) {
+        if (!codeIndexService.ready()) {
+            return "代码索引尚未就绪：`" + escapeMarkdown(codeIndexService.lastError()) + "`。请检查仓库配置后重新索引。";
+        }
         List<SearchHit> hits = codeIndexService.search(question, properties.getIndex().getMaxResults());
         if (hits.isEmpty()) {
             return "没有在当前索引中找到明显相关代码。当前索引分支：`" + codeIndexService.branch() + "`。";

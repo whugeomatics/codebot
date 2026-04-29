@@ -4,18 +4,18 @@ server:
 spring:
   application:
     name: codebot
-  profiles:
-    active: local
 
 logging:
   level:
     root: info
-    io.github.bridgewares.codebot: info
 
 codebot:
   enabled: true
-  repository-path: ${CODEBOT_REPOSITORY_PATH:/path/to/target-repository}
+  repository-url: ${CODEBOT_REPOSITORY_URL:}  # codebase远程仓库地址
+  repository-cache-path: ${CODEBOT_REPOSITORY_CACHE_PATH:.codebot/repositories} # codebase本地仓库缓存地址
+  repository-path: ${CODEBOT_REPOSITORY_PATH:/path/to/target-repository}  # codebase本地仓库地址
   branch: ${CODEBOT_BRANCH:main}
+  admin-token: ${CODEBOT_ADMIN_TOKEN:}
   wecom:
     # 企业微信回调配置中的 Token
     token: ${WECOM_CALLBACK_TOKEN:}

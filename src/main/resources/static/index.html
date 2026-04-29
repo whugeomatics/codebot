@@ -27,6 +27,10 @@
           box-sizing: border-box;
         }
 
+        [hidden] {
+          display: none !important;
+        }
+
         body {
           margin: 0;
           min-height: 100vh;
@@ -38,6 +42,7 @@
 
         .app {
           min-height: 100vh;
+          height: 100vh;
           display: grid;
           grid-template-rows: auto 1fr;
         }
@@ -113,8 +118,10 @@
           padding: 24px 28px 28px;
           display: grid;
           grid-template-columns: minmax(330px, 420px) minmax(0, 1fr);
+          grid-template-rows: minmax(0, 1fr);
           gap: 22px;
           align-items: stretch;
+          min-height: 0;
         }
 
         .panel {
@@ -253,6 +260,7 @@
         .answer-panel {
           display: grid;
           grid-template-rows: auto 1fr;
+          min-height: 0;
           overflow: hidden;
         }
 
@@ -279,7 +287,8 @@
         .answer-wrap {
           padding: 20px;
           min-height: 0;
-          overflow: auto;
+          overflow-y: auto;
+          overflow-x: hidden;
           background: #fbfcfd;
         }
 
@@ -346,6 +355,7 @@
 
           .workspace {
             grid-template-columns: 1fr;
+            grid-template-rows: auto minmax(420px, 60vh);
             padding: 16px;
           }
 
@@ -438,6 +448,7 @@
     const health = document.getElementById('health');
     const answerMeta = document.getElementById('answerMeta');
     const answerPanel = document.getElementById('answerPanel');
+    const answerWrap = document.querySelector('.answer-wrap');
 
     function setStatus(text, isError = false) {
       status.textContent = text;
@@ -448,6 +459,7 @@
       empty.hidden = true;
       answer.hidden = false;
       answer.textContent = text || '没有返回答案。';
+      answerWrap.scrollTop = 0;
     }
 
     async function loadHealth() {

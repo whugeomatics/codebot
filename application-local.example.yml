@@ -1,0 +1,33 @@
+server:
+  port: 18080
+
+spring:
+  application:
+    name: codebot
+
+logging:
+  level:
+    root: info
+
+codebot:
+  enabled: true
+  # repository-path 和 repository-url 二选一；配置 repository-url 时优先使用远程仓库。
+  repository-path: /path/to/target-repository
+  repository-url:
+  repository-cache-path: .codebot/repositories
+  branch: main
+  # 配置后会保护 /admin/reindex 和 /debug/ask。
+  admin-token:
+  wecom:
+    token:
+    encoding-aes-key:
+    receive-id:
+    strict-receive-id: false
+    webhook-url:
+  llm:
+    base-url: https://api.openai.com/v1
+    api-key:
+    model: gpt-4.1-mini
+    timeout: 180s
+    max-tokens: 1200
+    thinking-type:

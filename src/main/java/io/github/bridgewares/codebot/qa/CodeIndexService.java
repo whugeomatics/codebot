@@ -30,6 +30,7 @@ public class CodeIndexService {
     private final List<CodeChunk> chunks = new CopyOnWriteArrayList<>();
     private volatile String branch = "";
     private volatile String commitId = "";
+    private volatile String lastError = "";
 
     public CodeIndexService(CodeBotProperties properties) {
         this.properties = properties;
@@ -38,31 +39,136 @@ public class CodeIndexService {
     @PostConstruct
     public void init() {
         if (properties.isEnabled()) {
-            reindex();
+            try {
+                reindex();
+            } catch (Exception e) {
+                log.warn("Initial code index is not ready: {}", e.getMessage());
+            }
         }
     }
 
     public synchronized int reindex() {
-        Path root = properties.getRepositoryPath().toAbsolutePath().normalize();
-        if (!Files.isDirectory(root)) {
-            throw new IllegalStateException("Repository path does not exist: " + root);
+        try {
+            Path root = resolveRepositoryRoot();
+            if (!Files.isDirectory(root)) {
+                throw new IllegalStateException("Repository path does not exist: " + root);
+            }
+            List<CodeChunk> next = new ArrayList<>();
+            try (Stream<Path> stream = Files.walk(root)) {
+                stream.filter(Files::isRegularFile)
+                        .filter(path -> !isExcluded(root, path))
+                        .filter(this::isIncludedFile)
+                        .filter(path -> isSmallEnough(path, properties.getIndex().getMaxFileBytes()))
+                        .forEach(path -> next.addAll(chunkFile(root, path)));
+            } catch (Exception e) {
+                throw new IllegalStateException("Unable to index repository: " + root, e);
+            }
+            chunks.clear();
+            chunks.addAll(next);
+            branch = git(root, "rev-parse", "--abbrev-ref", "HEAD");
+            commitId = git(root, "rev-parse", "HEAD");
+            lastError = "";
+            log.info("Indexed {} chunks from {}, branch={}, commit={}", chunks.size(), root, branch, commitId);
+            return chunks.size();
+        } catch (RuntimeException e) {
+            lastError = e.getMessage();
+            throw e;
         }
-        List<CodeChunk> next = new ArrayList<>();
-        try (Stream<Path> stream = Files.walk(root)) {
-            stream.filter(Files::isRegularFile)
-                    .filter(path -> !isExcluded(root, path))
-                    .filter(this::isIncludedFile)
-                    .filter(path -> isSmallEnough(path, properties.getIndex().getMaxFileBytes()))
-                    .forEach(path -> next.addAll(chunkFile(root, path)));
+    }
+
+    private Path resolveRepositoryRoot() {
+        String repositoryUrl = properties.getRepositoryUrl();
+        if (repositoryUrl == null || repositoryUrl.isBlank()) {
+            return properties.getRepositoryPath().toAbsolutePath().normalize();
+        }
+        return prepareRemoteRepository(repositoryUrl.trim());
+    }
+
+    private Path prepareRemoteRepository(String repositoryUrl) {
+        Path cacheRoot = properties.getRepositoryCachePath().toAbsolutePath().normalize();
+        Path repositoryRoot = cacheRoot.resolve(cacheDirectoryName(repositoryUrl)).normalize();
+        if (!repositoryRoot.startsWith(cacheRoot)) {
+            throw new IllegalStateException("Invalid repository cache path: " + repositoryRoot);
+        }
+        try {
+            Files.createDirectories(cacheRoot);
+            if (Files.notExists(repositoryRoot)) {
+                cloneRepository(repositoryUrl, repositoryRoot);
+            } else if (!Files.isDirectory(repositoryRoot.resolve(".git"))) {
+                throw new IllegalStateException("Repository cache path exists but is not a git repository: " + repositoryRoot);
+            } else {
+                updateRepository(repositoryRoot);
+            }
+            return repositoryRoot;
         } catch (Exception e) {
-            throw new IllegalStateException("Unable to index repository: " + root, e);
+            throw new IllegalStateException("Unable to prepare remote repository: " + safeRepositoryUrl(repositoryUrl), e);
         }
-        chunks.clear();
-        chunks.addAll(next);
-        branch = git(root, "rev-parse", "--abbrev-ref", "HEAD");
-        commitId = git(root, "rev-parse", "HEAD");
-        log.info("Indexed {} chunks from {}, branch={}, commit={}", chunks.size(), root, branch, commitId);
-        return chunks.size();
+    }
+
+    private void cloneRepository(String repositoryUrl, Path repositoryRoot) {
+        List<String> command = new ArrayList<>(List.of("git", "clone"));
+        if (properties.getBranch() != null && !properties.getBranch().isBlank()) {
+            command.add("--branch");
+            command.add(properties.getBranch());
+        }
+        command.add(repositoryUrl);
+        command.add(repositoryRoot.toString());
+        run(command, repositoryRoot.getParent());
+    }
+
+    private void updateRepository(Path repositoryRoot) {
+        run(List.of("git", "fetch", "--all", "--prune"), repositoryRoot);
+        if (properties.getBranch() != null && !properties.getBranch().isBlank()) {
+            run(List.of("git", "checkout", "-B", properties.getBranch(), "origin/" + properties.getBranch()), repositoryRoot);
+        } else {
+            run(List.of("git", "pull", "--ff-only"), repositoryRoot);
+        }
+    }
+
+    private String cacheDirectoryName(String repositoryUrl) {
+        String normalized = repositoryUrl.replace('\\', '/');
+        int slash = normalized.lastIndexOf('/');
+        String name = slash >= 0 ? normalized.substring(slash + 1) : normalized;
+        if (name.endsWith(".git")) {
+            name = name.substring(0, name.length() - 4);
+        }
+        name = name.replaceAll("[^A-Za-z0-9._-]", "-");
+        if (name.isBlank()) {
+            name = "repository";
+        }
+        return name + "-" + Integer.toHexString(repositoryUrl.hashCode());
+    }
+
+    private String safeRepositoryUrl(String repositoryUrl) {
+        return repositoryUrl.replaceFirst("://[^/@]+@", "://***@");
+    }
+
+    private void run(List<String> command, Path directory) {
+        try {
+            Process process = new ProcessBuilder(command)
+                    .directory(directory.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                StringBuilder builder = new StringBuilder();
+                String line;
+                int lines = 0;
+                while ((line = reader.readLine()) != null) {
+                    if (lines < 80) {
+                        builder.append(line).append('\n');
+                    }
+                    lines++;
+                }
+                output = builder.toString();
+            }
+            int exit = process.waitFor();
+            if (exit != 0) {
+                throw new IllegalStateException("Git command failed with exit " + exit + ":\n" + output);
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to run git command", e);
+        }
     }
 
     public List<SearchHit> search(String question, int maxResults) {
@@ -85,6 +191,14 @@ public class CodeIndexService {
 
     public int size() {
         return chunks.size();
+    }
+
+    public boolean ready() {
+        return lastError.isBlank();
+    }
+
+    public String lastError() {
+        return lastError;
     }
 
     private List<CodeChunk> chunkFile(Path root, Path path) {

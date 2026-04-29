@@ -19,12 +19,11 @@ public class OpenAiCompatibleClient {
 
     private final CodeBotProperties properties;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient;
+    private volatile HttpClient httpClient;
 
     public OpenAiCompatibleClient(CodeBotProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newHttpClient();
     }
 
     public boolean configured() {
@@ -54,7 +53,7 @@ public class OpenAiCompatibleClient {
                     .header("Authorization", "Bearer " + properties.getLlm().getApiKey())
                     .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
                     .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> response = httpClient().send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new IllegalStateException("LLM request failed: " + response.statusCode() + " " + response.body());
             }
@@ -91,6 +90,15 @@ public class OpenAiCompatibleClient {
             }
         }
         return "";
+    }
+
+    private HttpClient httpClient() {
+        HttpClient current = httpClient;
+        if (current == null) {
+            current = HttpClient.newHttpClient();
+            httpClient = current;
+        }
+        return current;
     }
 
     private String abbreviate(String value, int maxLength) {
