@@ -13,7 +13,7 @@
 
     <groupId>io.github.bridgewares</groupId>
     <artifactId>codebot</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>codebot</name>
     <description>Code question answering bot for a target repository</description>
 
@@ -43,6 +43,7 @@
     </dependencies>
 
     <build>
+        <finalName>${artifactId}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

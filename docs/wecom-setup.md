@@ -115,13 +115,13 @@ cp application-local.example.yml application-local.yml
 然后启动时显式加载：
 
 ```powershell
-java -jar target\codebot-1.0.0-SNAPSHOT.jar --spring.config.additional-location=file:./application-local.yml
+java -jar target\codebotjar --spring.config.additional-location=file:./application-local.yml
 ```
 
 Linux / macOS:
 
 ```bash
-java -jar target/codebot-1.0.0-SNAPSHOT.jar --spring.config.additional-location=file:./application-local.yml
+java -jar target/codebot.jar --spring.config.additional-location=file:./application-local.yml
 ```
 
 ### 验证

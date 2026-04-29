@@ -91,13 +91,13 @@ cp application-local.example.yml application-local.yml
 启动时显式加载：
 
 ```powershell
-java -jar target\codebot-1.0.0-SNAPSHOT.jar --spring.config.additional-location=file:./application-local.yml
+java -jar target\codebot.jar --spring.config.additional-location=file:./application-local.yml
 ```
 
 Linux / macOS:
 
 ```bash
-java -jar target/codebot-1.0.0-SNAPSHOT.jar --spring.config.additional-location=file:./application-local.yml
+java -jar target/codebot.jar --spring.config.additional-location=file:./application-local.yml
 ```
 
 远程仓库模式：
@@ -156,14 +156,14 @@ mvn spring-boot:run
 
 ```powershell
 mvn -DskipTests package
-java -jar target\codebot-1.0.0-SNAPSHOT.jar
+java -jar target\codebot.jar
 ```
 
 Linux / macOS:
 
 ```bash
 mvn -DskipTests package
-java -jar target/codebot-1.0.0-SNAPSHOT.jar
+java -jar target/codebot.jar
 ```
 
 默认端口是 `18080`。
