@@ -447,7 +447,7 @@ curl -X POST http://127.0.0.1:18080/api/v1/code-bot/web/ask \
 
 ## 使用案例
 
-[案例](./docs/use.png)
+![案例](./docs/use.png)
 
 ## 常见问题
 
