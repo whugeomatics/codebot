@@ -1,4 +1,5 @@
 target/
+.codebot/
 .idea/
 *.iml
 logs/

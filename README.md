@@ -1,12 +1,13 @@
 # codebot
 
-`codebot` 是一个面向代码仓库的旁路问答服务。它会索引指定仓库的当前代码，用本地检索找出相关片段，再调用 OpenAI 兼容的大模型接口生成回答。
+`codebot` 是一个面向代码仓库的旁路问答服务，它会索引指定仓库的当前代码，用本地检索找出相关片段，再调用 OpenAI 兼容的大模型接口生成回答。
 
 服务不修改目标代码仓库，适合部署成独立应用，给团队提供代码问答入口。
 
 ## 功能
 
 - 索引本地代码仓库，记录当前分支、提交和代码片段。
+- 可直接配置远程 Git 仓库 URL，由服务自动克隆和更新缓存。
 - 提供网页提问入口，可选择把答案同步推送到企业微信群。
 - 支持企业微信回调，群成员可以在企微信群里 `@机器人` 提问。
 - 支持 OpenAI 兼容接口；未配置大模型时，会返回本地检索结果。
@@ -25,24 +26,34 @@
 
 ### 1. 准备目标代码仓库
 
-确保目标仓库已经在本机或服务器上存在，并切到要问答的分支。
+有两种方式：
+
+- **本地仓库模式**：目标仓库已经在本机或服务器上存在，并切到要问答的分支。
+- **远程仓库模式**：配置 GitHub、GitLab、Gitee 等远程 Git URL，`codebot` 会自动克隆到缓存目录并在重新索引时更新。
+
+本地仓库模式检查：
 
 ```powershell
-git -C D:\Workspace\project\target-repository status
+git -C D:\path\to\target-repository status
 ```
 
 Linux / macOS:
 
 ```bash
-git -C /opt/code/target-repository status
+git -C /path/to/target-repository status
 ```
+
+远程仓库模式不需要提前下载代码，但运行环境必须能访问远程仓库并安装 `git`。私有仓库建议使用 SSH key 或 Git credential
+helper，不建议把 token 直接写进 URL。
 
 ### 2. 配置环境变量
 
-最少需要配置目标仓库路径。配置大模型后会生成完整回答；不配置大模型时只返回本地检索结果。
+最少需要配置本地仓库路径或远程仓库 URL。配置大模型后会生成完整回答；不配置大模型时只返回本地检索结果。
+
+本地仓库模式：
 
 ```powershell
-$env:CODEBOT_REPOSITORY_PATH="D:\Workspace\project\target-repository"
+$env:CODEBOT_REPOSITORY_PATH="D:\path\to\target-repository"
 $env:CODEBOT_BRANCH="main"
 
 $env:OPENAI_BASE_URL="https://api.openai.com/v1"
@@ -55,7 +66,7 @@ $env:OPENAI_MAX_TOKENS="1200"
 Linux / macOS:
 
 ```bash
-export CODEBOT_REPOSITORY_PATH="/opt/code/target-repository"
+export CODEBOT_REPOSITORY_PATH="/path/to/target-repository"
 export CODEBOT_BRANCH="main"
 
 export OPENAI_BASE_URL="https://api.openai.com/v1"
@@ -64,6 +75,56 @@ export OPENAI_MODEL="gpt-4.1-mini"
 export OPENAI_TIMEOUT="180s"
 export OPENAI_MAX_TOKENS="1200"
 ```
+
+也可以复制示例配置文件，在项目根目录创建的 `application-local.yml`：
+
+```powershell
+Copy-Item .\application-local.example.yml .\application-local.yml
+```
+
+Linux / macOS:
+
+```bash
+cp application-local.example.yml application-local.yml
+```
+
+启动时显式加载：
+
+```powershell
+java -jar target\codebot-1.0.0-SNAPSHOT.jar --spring.config.additional-location=file:./application-local.yml
+```
+
+Linux / macOS:
+
+```bash
+java -jar target/codebot-1.0.0-SNAPSHOT.jar --spring.config.additional-location=file:./application-local.yml
+```
+
+远程仓库模式：
+
+```powershell
+$env:CODEBOT_REPOSITORY_URL="https://github.com/your-org/your-repo.git"
+$env:CODEBOT_REPOSITORY_CACHE_PATH=".codebot/repositories"
+$env:CODEBOT_BRANCH="main"
+$env:CODEBOT_ADMIN_TOKEN="change-me"
+```
+
+Linux / macOS:
+
+```bash
+export CODEBOT_REPOSITORY_URL="https://github.com/your-org/your-repo.git"
+export CODEBOT_REPOSITORY_CACHE_PATH=".codebot/repositories"
+export CODEBOT_BRANCH="main"
+export CODEBOT_ADMIN_TOKEN="change-me"
+```
+
+配置了 `CODEBOT_REPOSITORY_URL` 时，`CODEBOT_REPOSITORY_PATH` 会被忽略。缓存目录默认是 `.codebot/repositories`。
+
+分支规则是明确的：
+
+- 配置了 `CODEBOT_BRANCH` 时，首次索引会执行 `git clone --branch <CODEBOT_BRANCH> <CODEBOT_REPOSITORY_URL>`，然后只索引该分支代码。
+- 已有缓存仓库时，重新索引会先执行 `git fetch --all --prune`，再基于 `origin/<CODEBOT_BRANCH>` 切换本地缓存分支，然后只索引该分支代码。
+- 没有配置 `CODEBOT_BRANCH` 时，使用默认值 `main`。
 
 如果需要把网页提问答案推送到企微群，再配置群机器人 webhook：
 
@@ -124,8 +185,10 @@ curl http://127.0.0.1:18080/api/v1/code-bot/health
 - `branch`：当前索引分支
 - `commitId`：当前索引提交
 - `chunks`：代码片段数量
+- `lastError`：索引未就绪时的错误原因
 
-如果目标仓库不存在，服务启动或重新索引会失败，请先检查 `CODEBOT_REPOSITORY_PATH`。
+如果本地仓库不存在，服务仍会启动，但 `status` 会显示 `NOT_READY`。请先检查 `CODEBOT_REPOSITORY_PATH`。如果使用远程仓库模式，请检查
+`CODEBOT_REPOSITORY_URL`、网络、分支名和 Git 凭据。
 
 ## 接入方式一：网页提问 + 企微群推送
 
@@ -266,21 +329,24 @@ export OPENAI_THINKING_TYPE="disabled"
 
 ## 配置项
 
-| 配置项                               | 环境变量                      | 说明                                    |
-|-----------------------------------|---------------------------|---------------------------------------|
-| `codebot.repository-path`         | `CODEBOT_REPOSITORY_PATH` | 要索引的本地代码仓库路径                          |
-| `codebot.branch`                  | `CODEBOT_BRANCH`          | 默认分支名；实际展示优先读取仓库当前分支                  |
-| `codebot.wecom.webhook-url`       | `WECOM_ROBOT_WEBHOOK_URL` | 企业微信群机器人 webhook，用于推送答案               |
-| `codebot.wecom.token`             | `WECOM_CALLBACK_TOKEN`    | 企业微信回调 Token                          |
-| `codebot.wecom.encoding-aes-key`  | `WECOM_ENCODING_AES_KEY`  | 企业微信回调 EncodingAESKey，长度 43 位         |
-| `codebot.wecom.receive-id`        | `WECOM_RECEIVE_ID`        | 企业 ID corpId，可按企微回调类型配置               |
-| `codebot.wecom.strict-receive-id` | 无                         | 是否严格校验 receive-id                     |
-| `codebot.llm.base-url`            | `OPENAI_BASE_URL`         | OpenAI 兼容接口地址，不包含 `/chat/completions` |
-| `codebot.llm.api-key`             | `OPENAI_API_KEY`          | 大模型 API key                           |
-| `codebot.llm.model`               | `OPENAI_MODEL`            | 模型名称                                  |
-| `codebot.llm.timeout`             | `OPENAI_TIMEOUT`          | 大模型请求超时                               |
-| `codebot.llm.max-tokens`          | `OPENAI_MAX_TOKENS`       | 最大输出 token 数                          |
-| `codebot.llm.thinking-type`       | `OPENAI_THINKING_TYPE`    | 可选 thinking 参数                        |
+| 配置项                               | 环境变量                            | 说明                                    |
+|-----------------------------------|---------------------------------|---------------------------------------|
+| `codebot.repository-path`         | `CODEBOT_REPOSITORY_PATH`       | 要索引的本地代码仓库路径                          |
+| `codebot.repository-url`          | `CODEBOT_REPOSITORY_URL`        | 远程 Git 仓库 URL；配置后自动克隆/更新缓存，并优先于本地路径   |
+| `codebot.repository-cache-path`   | `CODEBOT_REPOSITORY_CACHE_PATH` | 远程仓库本地缓存目录，默认 `.codebot/repositories` |
+| `codebot.branch`                  | `CODEBOT_BRANCH`                | 要索引的分支；远程仓库模式会拉取该分支，默认 `main`          |
+| `codebot.admin-token`             | `CODEBOT_ADMIN_TOKEN`           | 可选管理 token；配置后保护 `/admin/reindex` 和 `/debug/ask` |
+| `codebot.wecom.webhook-url`       | `WECOM_ROBOT_WEBHOOK_URL`       | 企业微信群机器人 webhook，用于推送答案               |
+| `codebot.wecom.token`             | `WECOM_CALLBACK_TOKEN`          | 企业微信回调 Token                          |
+| `codebot.wecom.encoding-aes-key`  | `WECOM_ENCODING_AES_KEY`        | 企业微信回调 EncodingAESKey，长度 43 位         |
+| `codebot.wecom.receive-id`        | `WECOM_RECEIVE_ID`              | 企业 ID corpId，可按企微回调类型配置               |
+| `codebot.wecom.strict-receive-id` | 无                               | 是否严格校验 receive-id                     |
+| `codebot.llm.base-url`            | `OPENAI_BASE_URL`               | OpenAI 兼容接口地址，不包含 `/chat/completions` |
+| `codebot.llm.api-key`             | `OPENAI_API_KEY`                | 大模型 API key                           |
+| `codebot.llm.model`               | `OPENAI_MODEL`                  | 模型名称                                  |
+| `codebot.llm.timeout`             | `OPENAI_TIMEOUT`                | 大模型请求超时                               |
+| `codebot.llm.max-tokens`          | `OPENAI_MAX_TOKENS`             | 最大输出 token 数                          |
+| `codebot.llm.thinking-type`       | `OPENAI_THINKING_TYPE`          | 可选 thinking 参数                        |
 
 ## API
 
@@ -298,7 +364,7 @@ curl http://127.0.0.1:18080/api/v1/code-bot/health
 
 ### 重新索引
 
-目标仓库拉代码、切分支或切 commit 后，需要重新索引：
+目标仓库拉代码、切分支或切 commit 后，需要重新索引。远程仓库模式下，重新索引会先更新缓存仓库：
 
 ```powershell
 curl -X POST http://127.0.0.1:18080/api/v1/code-bot/admin/reindex
@@ -308,6 +374,20 @@ Linux / macOS:
 
 ```bash
 curl -X POST http://127.0.0.1:18080/api/v1/code-bot/admin/reindex
+```
+
+如果配置了 `CODEBOT_ADMIN_TOKEN`，需要带上请求头：
+
+```powershell
+curl -X POST http://127.0.0.1:18080/api/v1/code-bot/admin/reindex `
+  -H "X-CodeBot-Admin-Token: change-me"
+```
+
+Linux / macOS:
+
+```bash
+curl -X POST http://127.0.0.1:18080/api/v1/code-bot/admin/reindex \
+  -H "X-CodeBot-Admin-Token: change-me"
 ```
 
 ### 本地调试问答
@@ -321,6 +401,8 @@ Linux / macOS:
 ```bash
 curl "http://127.0.0.1:18080/api/v1/code-bot/debug/ask?question=用户登录逻辑在哪里实现"
 ```
+
+如果配置了 `CODEBOT_ADMIN_TOKEN`，`/debug/ask` 同样需要 `X-CodeBot-Admin-Token` 请求头。
 
 ### 网页问答 API
 
@@ -362,6 +444,10 @@ curl -X POST http://127.0.0.1:18080/api/v1/code-bot/web/ask \
 
 包含 `password`、`secret`、`token`、`webhook`、`api-key`、`access_token` 等关键词的行会在送入模型前替换成
 `[REDACTED SENSITIVE CONFIG LINE]`。
+
+## 使用案例
+
+[案例](./docs/use.png)
 
 ## 常见问题
 
@@ -410,5 +496,6 @@ curl -X POST http://127.0.0.1:18080/api/v1/code-bot/admin/reindex
 
 - 用 Nginx 或网关把公网 HTTPS 域名转发到服务端口，回调模式必须保证企微后台能访问。
 - 不要把 `application-local.yml`、API key、webhook、Token 提交到 Git。
+- 生产环境建议配置 `CODEBOT_ADMIN_TOKEN`，避免公网访问者触发重新索引或 debug 问答。
 - 生产环境建议全部用环境变量或密钥管理系统注入敏感配置。
 - 多人高频使用时，建议把 `codebot` 和目标代码仓库所在服务隔离部署。
